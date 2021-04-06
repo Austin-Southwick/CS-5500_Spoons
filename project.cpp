@@ -23,7 +23,6 @@ vector<int> draw(vector<int> hand, vector<int> deck){
 	return hand;	
 }
 
-
 int main(int argc, char  **argv){
 
 
@@ -50,7 +49,7 @@ int main(int argc, char  **argv){
 		cout << "Need at least 2 players to play the game...(Minimum 3  processors required: 2 players, 1 to control spoon pile)" << endl;
 		return 0;
 	} 
-	if(rank == 1){ //rank 1 to be first dealer.
+	if(rank == 1){ // rank 1 to be first dealer.
 		isDealer = true;
 	}
 	
@@ -61,13 +60,20 @@ int main(int argc, char  **argv){
 	//=== GAME LOOP ===//
 	//=================//
 
+
+	//=================//
+	//=== MPI_TAGS ====// (Just Ideas here)
+	// Tag = -1 (Someone grabbed a spoon)
+	// Tag = 1 (Someone has won the game just quit)
+	//
+
 	for(numOfRounds; numOfRounds > 0; numOfRounds--){
 		
 		// -- initialize round -- //
 		if(rank == 0){
-			spoons = 
+			spoons = numOfRounds;
 		}
-
+		playerFinished = numOfRounds + 1;
 		// -- during round -- //
 		while(!roundFinished){ 
 		
@@ -75,17 +81,38 @@ int main(int argc, char  **argv){
 			if(rank == 0){
 				MPI_Iprobe(); // check if a player grabs a spoon.
 				if(playerFinished > 0 && spoons > 0){
-					MPI_Send(playerFinished);
+					MPI_Send(playerFinished); // this needs to be sent to all players so they can grab a spoon too.
+					if(playerFinished == numOfRounds) {
+						MPI_Scatter('Grab a spoon ya slowPokes');
+					}
 					spoons = spoons - 1;	
-					playerFinished = 0; // exit condition
-				}
-				else{	
-										
+					playerFinished = playerFinished - 1; // exit condition
+				}	else {				
 					roundFinished = true;
 				}
 			}
+
+			int grabASpoon = 0;
+			MPI_IProbe(grabASpoon); // check if the other players grabbed a spoon.
+			if(grabASpoon) {
+				int giveMeASpoon = 0;
+				MPI_Send(); // ask rank 0 politely for a spoon.
+				MPI_Recv(giveMeASpoon); // 
+				if(!giveMeASpoon) {
+					isALive = false;
+				}
+			}
 			if(isDealer){
-				
+				// draw a card from the deck
+				// pass one on to the next process/player
+				// repeat until 4 cards match
+			} else {
+				// receive a card from the previous process/player
+				if(!isAlive) {
+					// just pass along the card from the previous player
+				}
+				// pass one on to the next process/player
+				// repeat until 4 cards match
 			}
 		}
 		
