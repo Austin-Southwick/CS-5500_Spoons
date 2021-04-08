@@ -8,30 +8,74 @@
 
 using namespace std;
 
-vector<int> draw(vector<int> hand, vector<int> deck){
-	hand.push_back(1);
-	for(int i = 0; i < 3; i++){
-		for(int j = 0; j < 4; j++){
-			if(i != j){
-				int quantity = 0;
-				if(hand[i] == hand[j]){
-					quantity = quantity + 1;
+// morphed this function into the assess hand function
+// vector<int> draw(vector<int> hand, vector<int> deck){
+// 	hand.push_back(1);
+// 	for(int i = 0; i < 3; i++){
+// 		for(int j = 0; j < 4; j++){
+// 			if(i != j){
+// 				int quantity = 0;
+// 				if(hand[i] == hand[j]){
+// 					quantity = quantity + 1;
+// 				}
+// 			}
+// 		}
+// 	}		
+// 	return hand;	
+}
+
+// sort 2d vector by second(1th) element
+bool sortVectorFunc(vector<int> x, vector<int> y) {
+	return x[1] > y[1]; 
+}
+
+// this takes a hand and a new card and returns the new hand sorted by quantity of each card
+// this assumes hand is 2d vector
+// returns the hand, assumption is that you would discard the last element (send it to the next player/process)
+vector<vector<int> > takeYourTurn(vector<vector<int> > hand, int newCard) {
+	int goingFor = hand[0][0];
+	int quantity = hand[0][1];
+	int newCardQuantity = 1;
+	for(int i = 0; i < hand.size(); i++){
+		if(hand[i][0] == newCard) {
+			newCardQuantity += 1;
+			if(newCardQuantity > quantity) {
+				goingFor = newCard;
+				quantity = newCardQuantity;
+				break;
+			}
+		}
+	}
+	vector<int> newCard = (newCard, newCardQuantity)
+	hand.push_back(newCard);
+	sort(hand.begin(), hand.end(), sortVectorFunc);
+	return hand;
+}
+
+vector<vector<int> > assessHand(vector<vector<int> > myHand) {
+	for(int i = 0; i < myHand.size() - 1; i++) {
+		for(int j = 0; j < h=myHand.size(); j++) {
+			if(i != j) {
+				if(myHand[i][0] == myHand[j][0]) {
+					myHand[i][1] += 1;
+					myHand[j][1] += 1;
 				}
 			}
 		}
-	}		
-	return hand;	
+	}
+	sort(myHand.begin(), myHand.end(), sortVectorFunc);
+	return myHand;
 }
 
 int main(int argc, char  **argv){
-
+	srand(time(NULL));
 
 	//=================//
 	//=== VARIABLES ===//
 	//=================//
 
 	int rank, size, spoons, playerFinished;
-	vector<int> myHand;
+	vector<vector<int> > myHand;
 	vector<int> deck;
 	bool isDealer, isTurn, roundFinished = false;
 	bool isAlive = true;	
@@ -55,6 +99,19 @@ int main(int argc, char  **argv){
 	
 	int numOfRounds = size - 3;
 
+	// initialize deck
+	for(int i = 0; i < 52; i++) {
+		deck.push_back(rand() % 13);
+	}
+	// each process picks their first 4 cards from their own deck (because it's simple)
+	vector<vector<int> > initialHand;
+	for(int i = 0; i < 4; i++) {
+		vector<int> newCard = (deck.pop_back(), 1);
+		initialHand.push_back(newCard);
+	}
+
+	// assess the deck
+	myHand = assessHand(initialHand);
 
 	//=================//
 	//=== GAME LOOP ===//
@@ -96,24 +153,36 @@ int main(int argc, char  **argv){
 			MPI_IProbe(grabASpoon); // check if the other players grabbed a spoon.
 			if(grabASpoon) {
 				int giveMeASpoon = 0;
-				MPI_Send(); // ask rank 0 politely for a spoon.
-				MPI_Recv(giveMeASpoon); // 
+				MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 0, MCW); // ask rank 0 politely for a spoon.
+				MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW);
 				if(!giveMeASpoon) {
 					isALive = false;
 				}
 			}
+
+			int potentialDest = (rank + 1) % size
+			int dest = potentialDest == 0 ? potentialDest + 1 : potentialDest;
+			int newCard;
 			if(isDealer){
 				// draw a card from the deck
-				// pass one on to the next process/player
-				// repeat until 4 cards match
+				newCard = deck.pop_back();
 			} else {
-				// receive a card from the previous process/player
+				// get new card from previous player
+				MPI_Recv(&newCard)
 				if(!isAlive) {
-					// just pass along the card from the previous player
+					// automatically send card along
+					MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
+					continue; // process is not alive, don't do anything else
 				}
-				// pass one on to the next process/player
-				// repeat until 4 cards match
 			}
+			vector<vector<int> > newHand = takeYourTurn(hand, newCard);
+			vector<int> discardCard = newHand.pop_back();
+			int discard = discardCard[0];
+			if(newHand[0][1] >= 4 ){
+				// grab a spoon
+			}
+			// send discarded card along to next process
+			MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
 		}
 		
 		//-- round over --//
