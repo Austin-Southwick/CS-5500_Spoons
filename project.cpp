@@ -137,7 +137,7 @@ int main(int argc, char  **argv){
 		// -- initialize round -- //
 		int numAlive;
 		// initialize deck again, so we don't run out of cards
-		deck = initializeDeck(numDecks);
+		deck = initializeDeck(numDeck);
 		if(rank == 0){
 			spoons = numOfRounds;  // number of spoons in play
             numAlive = spoons + 1; // number of current players, only GM needs access to this variable.
