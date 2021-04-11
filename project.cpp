@@ -136,6 +136,8 @@ int main(int argc, char  **argv){
 		
 		// -- initialize round -- //
 		int numAlive;
+		// initialize deck again, so we don't run out of cards
+		deck = initializeDeck(numDecks);
 		if(rank == 0){
 			spoons = numOfRounds;  // number of spoons in play
             numAlive = spoons + 1; // number of current players, only GM needs access to this variable.
@@ -222,7 +224,12 @@ int main(int argc, char  **argv){
 											newHand.pop_back();
 											int discard = discardCard[0];
 											if(newHand[0][1] >= 4 ){
-													// grab a spoon
+													int giveMeASpoon = 0;
+													MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 0, MCW); // ask rank 0 politely for a spoon.
+													MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW, &status);
+													if(giveMeASpoon == -1) {
+														isAlive = false; // you lose!
+													}
 											}
 											// send discarded card along to next process
 											MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
