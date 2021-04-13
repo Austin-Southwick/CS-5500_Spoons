@@ -154,7 +154,7 @@ int main(int argc, char  **argv){
         // -- during round -- //
         while(!roundFinished){  // exit condition.
             if(rank != 0){
-            cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
+                // cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
             }
             //------------------//
             //---GAME MANAGER---//
@@ -165,23 +165,18 @@ int main(int argc, char  **argv){
             // - GM broadcasts when a spoon has been taken
             // - Tells a player when they have lost
             if(rank == 0){
-                MPI_Iprobe(MPI_ANY_SOURCE, 1, MCW, &tag, MPI_STATUS_IGNORE); // check if a player wants to grab a spoon.
-								cout << "Checking for tag " << tag << endl;
-                if(tag){ // someone wants a spoon;
-                        cout << "Someone wants a spoon! " << data << endl;
-                        MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, 1, MCW, &status); //receives the request for a spoon
-												cout << "Recieved the request" << endl;
-                        if(data > 0 && spoons > 0){ // if there are spoons left.
-                                MPI_Send(&data, 1, MPI_INT, 1, 1, MCW); // player is sent a spoon.
-                                int grabASpoon = -2;
-                                MPI_Bcast(&grabASpoon, 1, MPI_INT, 0, MCW);
-                                spoons = spoons - 1;     // reduce the number of spoons
-                                numAlive = numAlive - 1; // exit condition
-                        }    else {
-                                roundFinished = true;
-                                int youLose = -1;
-                                MPI_Send(&youLose, 1, MPI_INT, data, 1, MCW); // sends you lost message to player without a spoon.
-                        }
+                MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, 1, MCW, &status); //receives the request for a spoon
+                cout << "Someone wants a spoon! " << data << endl;
+                if(data > 0 && spoons > 0){ // if there are spoons left.
+                        MPI_Send(&data, 1, MPI_INT, 1, 1, MCW); // player is sent a spoon.
+                        int grabASpoon = -2;
+                        MPI_Bcast(&grabASpoon, 1, MPI_INT, 0, MCW);
+                        spoons = spoons - 1;     // reduce the number of spoons
+                        numAlive = numAlive - 1; // exit condition
+                }    else {
+                        roundFinished = true;
+                        int youLose = -1;
+                        MPI_Send(&youLose, 1, MPI_INT, data, 1, MCW); // sends you lost message to player without a spoon.
                 }
       		}
             
@@ -256,7 +251,6 @@ int main(int argc, char  **argv){
                             }
                     }
         //-- round over --//
-        MPI_Barrier(MCW);
         }
     }
 
