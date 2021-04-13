@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <math.h>
+#include <random>
 
 #define MCW MPI_COMM_WORLD
 
@@ -48,14 +49,18 @@ vector<vector<int> > takeYourTurn(vector<vector<int> > hand, int newCard) {
 }
 
 
+// thank you kind c++ documentation for this code
 int randomFunction(int i) {
-    srand(time(NULL));
-    return rand() % i;
+	random_device rd;  //Will be used to obtain a seed for the random number engine
+	mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+	uniform_int_distribution<> distrib(0, i);
+	int num = distrib(gen);
+	return num;
 }
 
 vector<int> initializeDeck(int numOfDecks) {
     vector<int> deck;
-    for(int i = 0; i < numOfDecks; i++) {
+    for(int i = 0; i < numOfDecks * 4; i++) {
         for(int j = 1; j < 14; j++) {
             deck.push_back(j);
         }
@@ -157,9 +162,9 @@ int main(int argc, char  **argv){
             // - GM broadcasts when a spoon has been taken
             // - Tells a player when they have lost
             if(rank == 0){
-                tag = -100;
+                // tag = -100;
                 MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &tag, MPI_STATUS_IGNORE); // check if a player wants to grab a spoon.
-                if(tag == -1000){ // someone wants a spoon;
+                if(tag == 1){ // someone wants a spoon;
                         cout << "Someone wants a spoon!" << endl;
                         MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &status); //receives the request for a spoon
                         if(data > 0 && spoons > 0){ // if there are spoons left.
@@ -232,8 +237,8 @@ int main(int argc, char  **argv){
                                             cout << rank << " Discarding... " << discard << endl;
                                             if(newHand[0][1] == 4 ){
                                                 cout << " I'm Winning! --- Rank:" << rank << " =" << newHand[0][0] << "-" << newHand[1][0] << "-" << newHand[2][0] << "-" << newHand[3][0] <<  endl;
-                                                    int giveMeASpoon = -1000;
-                                                    MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 0, MCW); // ask rank 0 politely for a spoon.
+                                                    int giveMeASpoon = 0;
+                                                    MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
                                                     MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW, &status);
                                                     if(giveMeASpoon == -1) {
                                                         isAlive = false; // you lose!
