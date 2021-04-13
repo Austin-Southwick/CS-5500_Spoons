@@ -81,13 +81,14 @@ int main(int argc, char  **argv){
     bool isDealer, isTurn, done, roundFinished = false;
     bool isAlive = true;
 
-    srand(time(NULL) * rank);
+    
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MCW, &rank);
     MPI_Comm_size(MCW, &size);
     MPI_Status status;
 
+    srand(rank);
     //===================//
     //=== SET UP GAME ===//
     //===================//
@@ -137,8 +138,10 @@ int main(int argc, char  **argv){
   // Tag = 2 (Someone else grabbed a spoon! Request one NOW!)
     // Tag = 0 (Passed a card [Player specific], Someone requested a spoon [GM specific])
 
+    MPI_Barrier(MCW);
+    
     for(int numOfRounds = size - 2; numOfRounds > 0; numOfRounds--){
-        cout << "Starting game!" << endl;
+        cout << "Starting round!" << endl;
         // -- initialize round -- //
         int numAlive;
         // initialize deck again, so we don't run out of cards
@@ -169,7 +172,7 @@ int main(int argc, char  **argv){
                         MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &status); //receives the request for a spoon
                         if(data > 0 && spoons > 0){ // if there are spoons left.
                                 MPI_Send(&data, 1, MPI_INT, 1, 1, MCW); // player is sent a spoon.
-                                int grabASpoon = -1;
+                                int grabASpoon = -2;
                                 MPI_Bcast(&grabASpoon, 1, MPI_INT, 0, MCW);
                                 spoons = spoons - 1;     // reduce the number of spoons
                                 numAlive = numAlive - 1; // exit condition
@@ -179,7 +182,6 @@ int main(int argc, char  **argv){
                                 MPI_Send(&youLose, 1, MPI_INT, data, 1, MCW); // sends you lost message to player without a spoon.
                         }
                 }
-                data = 0; // resets data
       }
             
             //------------------//
@@ -201,8 +203,8 @@ int main(int argc, char  **argv){
                                             MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, MPI_STATUS_IGNORE);
                                             if(data == -2){
                                                     cout << "Someone grabbed a spoon" << endl;
-                                                    int giveMeASpoon = 0;
-                                                    MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 0, MCW); // ask rank 0 politely for a spoon.
+                                                    int giveMeASpoon = 1;
+                                                    MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
                                                     cout << "Rank: " << rank << " wants a spoon!" << endl;
                                                     MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW, &status);
                                                     if(!giveMeASpoon) {
@@ -211,42 +213,43 @@ int main(int argc, char  **argv){
                                                             }
                                                     }
                                             }
-                                            tag = 0;  // reset the tag to be zero;
-                                            data = 0; // reset the data to be zero;
-                                            int potentialDest = (rank + 1) % size;
-                                            int dest = potentialDest == 0 ? potentialDest + 1 : potentialDest;
-                                            int newCard;
-                                            if(isDealer){
-                                                    // draw a card from the deck
-                                                    newCard = deck[deck.size() - 1];
-                                                    deck.pop_back();
-                                            }
-                                            else {
-                                                // get new card from previous player
-                                                MPI_Recv(&newCard, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &status);
-                                                if(!isAlive) {
+                                        tag = 0;  // reset the tag to be zero;
+                                        int prevDest = rank - 1;
+                                        if(prevDest == 0){prevDest = size - 1;}
+                                        int potentialDest = (rank + 1) % size;
+                                        int dest = potentialDest == 0 ? potentialDest + 1 : potentialDest;
+                                        int newCard;
+                                        if(isDealer){
+                                                // draw a card from the deck
+                                                newCard = deck[deck.size() - 1];
+                                                deck.pop_back();
+                                        }
+                                        else {
+                                            // get new card from previous player
+                                            MPI_Recv(&newCard, 1, MPI_INT, prevDest, MPI_ANY_TAG, MCW, &status);
+                                            if(!isAlive) {
                                                 // automatically send card along
-                                                        MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
-                                                        continue; // process is not alive, don't do anything else
+                                                MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
+                                                continue; // process is not alive, don't do anything else
+                                            }
+                                        }
+                                        vector<vector<int> > newHand = takeYourTurn(myHand, newCard);
+                                        vector<int> discardCard = newHand[newHand.size() - 1];
+                                        newHand.pop_back();
+                                        int discard = discardCard[0];
+                                        cout << rank << " Discarding... " << discard << endl;
+                                        if(newHand[0][1] == 4 ){
+                                            cout << " I'm Winning! --- Rank:" << rank << " =" << newHand[0][0] << "-" << newHand[1][0] << "-" << newHand[2][0] << "-" << newHand[3][0] <<  endl;
+                                                int giveMeASpoon = 1;
+                                                MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
+                                                MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW, &status);
+                                                if(giveMeASpoon == -1) {
+                                                    isAlive = false; // you lose!
                                                 }
                                             }
-                                            vector<vector<int> > newHand = takeYourTurn(myHand, newCard);
-                                            vector<int> discardCard = newHand[newHand.size() - 1];
-                                            newHand.pop_back();
-                                            int discard = discardCard[0];
-                                            cout << rank << " Discarding... " << discard << endl;
-                                            if(newHand[0][1] == 4 ){
-                                                cout << " I'm Winning! --- Rank:" << rank << " =" << newHand[0][0] << "-" << newHand[1][0] << "-" << newHand[2][0] << "-" << newHand[3][0] <<  endl;
-                                                    int giveMeASpoon = 0;
-                                                    MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
-                                                    MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, MPI_ANY_TAG, MCW, &status);
-                                                    if(giveMeASpoon == -1) {
-                                                        isAlive = false; // you lose!
-                                                    }
-                                            }
-                                            myHand = newHand;
-                                            // send discarded card along to next process
-                                            MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
+                                        myHand = newHand;
+                                        // send discarded card along to next process
+                                        MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
                                     }
                             }
                     }
