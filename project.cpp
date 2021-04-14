@@ -167,14 +167,15 @@ int main(int argc, char  **argv){
             // - Tells a player when they have lost
             if(rank == 0){
                 MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, 1, MCW, &status); //receives the request for a spoon.
-                cout << data << " wants a spoon! " << endl;
+                cout << data << " wants a spoon! spoons left --> " << spoons << endl;
                 int message = -1;
                 if(spoons > 0){ // if there are spoons left.
+                    cout << "Sending a spoon!" << endl;
                     MPI_Send(&message, 1, MPI_INT, data, 1, MCW); // player is sent a spoon.
                     if(spoons == numOfRounds){ // if first spoon was sent.
                         message = -2;
                         for(int i = 1; i < size - 1; i++){
-                            MPI_Send(&message, 1, MPI_INT, i, 1, MCW); //send message to all participants to start grabbing spoons.
+                            if(i != data) MPI_Send(&message, 1, MPI_INT, i, 1, MCW); //send message to all participants to start grabbing spoons.
                         }
                     }
                     spoons = spoons - 1; //reduce the number of spoons.
@@ -182,7 +183,7 @@ int main(int argc, char  **argv){
                 }
                 else{
                     message = -3;
-                    MPI_Send(&message, 1, MPI_INT, data, 1, MCW, MPI_STATUS_IGNORE);
+                    MPI_Send(&message, 1, MPI_INT, data, 1, MCW);
                 }
             }
             
@@ -241,12 +242,12 @@ int main(int argc, char  **argv){
                                             cout << " I'm Winning! --- Rank:" << rank << " =" << newHand[0][0] << "-" << newHand[1][0] << "-" << newHand[2][0] << "-" << newHand[3][0] <<  endl;
                                                 int giveMeASpoon = rank;
                                                 MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
-																								cout << "Rank: " << rank << " asking for a spoon" << endl;
+												cout << "Rank: " << rank << " asking for a spoon" << endl;
                                                 MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW, &status);
-                                                if(giveMeASpoon == 0){
+                                                cout <<"Rank: " << rank <<  "Received a spoon --> " << giveMeASpoon << endl;
+                                                if(giveMeASpoon == -3){
                                                     cout << rank << " grabbed a spoon" << endl;
                                                     done = true;
-                                                    
                                                 }
                                                 if(giveMeASpoon == -1) {
                                                     isAlive = false; // you lose!
