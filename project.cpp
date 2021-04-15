@@ -213,6 +213,11 @@ int main(int argc, char  **argv){
                     MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
                 }
 
+                if(newCard != -2 && isDealer) {
+                    newCard = deck[deck.size() - 1];
+                    deck.pop_back();
+                }
+
                 // figure out what to do with my card
                 if (newCard > 0) {
                     newHand = takeYourTurn(myHand, newCard);
