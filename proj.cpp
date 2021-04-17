@@ -11,12 +11,12 @@
 
 using namespace std;
 
-
 // sort 2d vector by second(1th) element
 bool sortVectorFunc(vector<int> x, vector<int> y) {
     return x[1] > y[1];
 }
 
+// function that totals up the number of same cards in hand.
 vector<vector<int> > assessHand(vector<vector<int> > myHand) {
     for(int i = 0; i < myHand.size(); i++) {
         myHand[i][1] = 1;
@@ -74,10 +74,9 @@ vector<int> initializeDeck(int numOfDecks) {
 
 int main(int argc, char  **argv){
 
-    //=================//
-    //=== VARIABLES ===//
-    //=================//
-
+// -----------------------------------------------
+// VARIABLES AND PRE-GAME INFO.
+// -----------------------------------------------
     int rank, size, data, flag, numOfDecks, spoons, numAlive;
     vector<vector<int> > myHand;
     vector<int> deck;
@@ -99,12 +98,20 @@ int main(int argc, char  **argv){
    
     MPI_Barrier(MCW);
     
-    for(int roundNumber = 1; roundNumber < size - 2; roundNumber++)
-    {
-        //Determine whos turn to deal and give everyone their starting hands.
-        if(rank != 0 && rank != roundNumber){
-            isDealer = false;
-            for(int i = 0; i < 4; i++){
+    
+// =============================================== //
+// ============ MAIN GAME LOOP =================== //
+// =============================================== //
+    
+    for(int roundNumber = 1; roundNumber < size - 2; roundNumber++){
+        
+// -----------------------------------------------
+// DEALING THE CARDS AND OTHER PRE-ROUND PREP.
+// -----------------------------------------------
+        // Player Logic (not dealer)
+        if(rank != 0 && rank != roundNumber){   // all players who aren't the dealer.
+            isDealer = false;                   // I'm not the dealer this round.
+            for(int i = 0; i < 4; i++){         // for 4 cards. Grab the cards and add them to my hand.
                 MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, MPI_STATUS_IGNORE);
                 vector<int> temp2;
                 temp2.push_back(data);
@@ -112,19 +119,20 @@ int main(int argc, char  **argv){
                 myHand.push_back(temp2);
                 temp2.clear();
             }
-            myHand = assessHand(myHand);
+            myHand = assessHand(myHand);        // assess player's hand before starting round.
         }
-        if(rank == roundNumber){ // Dealer for the round.
+        // Dealer Logic
+        if(rank == roundNumber){    // Dealer for the round.
             isDealer = true;
-            deck = initializeDeck(1); // 4 more cards than players always in the deck.
+            deck = initializeDeck(ceil(size/13));   // always 4 more cards than players always in the deck.
             for(int j = 1; j < size; j++){
                 for(int i = 0; i < 4; i++){
                     int pass = deck.back();
                     deck.pop_back();
-                    if(rank != j){
+                    if(rank != j){                  // pass cards to other players
                         MPI_Send(&pass, 1, MPI_INT, j, 1, MCW);
                     }
-                    else{
+                    else{                           // add to the my (dealer's) hand.
                         vector<int> temp;
                         temp.push_back(pass);
                         temp.push_back(1);
@@ -133,26 +141,74 @@ int main(int argc, char  **argv){
                     }
                 }
             }
-            myHand = assessHand(myHand);
+            myHand = assessHand(myHand);            // assess dealer's hand before starting round.
         }
-        else{ // rank 0
-            numAlive = size - roundNumber; // number of current players, only GM needs access to this variable.
-            spoons = numAlive - 1;         // number of spoons available at the start of the round, only GM needs access to this variable.
+        else{   // Game Manager Logic (rank == 0)
+            numAlive = size - roundNumber;      // number of current players, only GM needs access to this variable.
+            spoons = numAlive - 1;              // number of spoons available at the start of the round, only GM needs access to this variable.
         }
+        
+        // set current data to 0 and line up the processors to begin at the same time.
         data = 0;
         MPI_Barrier(MCW);
         
+// -------------------------------------------------------------------------
+// PASSING CARDS AND GRABBING SPOONS LOGIC. {{ THE CORE GAMEPLAY }}
+// -------------------------------------------------------------------------
         while(roundFinished == 0){
-        
-        }
-        // Round over
+            
+            // GM LOGIC (PROCESS ZERO)
+            if(rank == 0){
+                MPI_Recv(&data, 1, MPI_INT, MPI_ANY_SOURCE, 1, MCW, &status); //receives the request for a spoon.
+                cout << data << " wants a spoon! spoons left --> " << spoons << endl;
+                int message = -1;
+                if(spoons > 0){ // if there are spoons left.
+                    cout << rank << ": Sending a spoon to " << data << endl;
+                    MPI_Send(&message, 1, MPI_INT, data, 1, MCW); // player is sent a spoon.
+                    if(spoons == numAlive){ // if first spoon was sent.
+                        message = -2;
+                        for(int i = 1; i < size - 1; i++){
+                            if(i != data) MPI_Send(&message, 1, MPI_INT, i, 1, MCW); //send message to all participants to start grabbing spoons.
+                        }
+                    }
+                    spoons = spoons - 1; //reduce the number of spoons.
+                } else {
+                    message = -3;
+                    MPI_Send(&message, 1, MPI_INT, data, 1, MCW);
+                    roundFinished = true;
+                }
+            }
+            
+            // PLAYER LOGIC (ALL OTHER PROCESSORS)
+            else{
+                // NEED TO FIX THIS SPOT AS I WAS HAVING SOME TROUBLE WITH THIS LAST TIME.
+    
+                    // PLAYERS NEED TO CHECK IF A MESSAGE FROM PROCESS 0 CAME IN.
+                        // IF A -3 CAME IN, YOU LOST. (RECIEVE ANY ADDITIONAL MESSAGES BUT DON'T DO ANYTHING)
+                        // IF A -1 CAME IN, YOU WON.  (RECIEVE ANY ADDITIONAL MESSAGES BUT DON'T DO ANYTHING)
+                        // IF A -2 CAME IN, STOP PASSING CARDS AND TRY TO GRAB A SPOON.
+                    
+                    // ELSE
+                        // RECIEVE A CARD FROM THE PREVIOUS PROCESSOR IN RING.
+                        // EVALUATE HAND TO DETERMINE DISCARD.
+                        // SEND DISCARD TO NEXT PROCESSOR IN RING LOOP.
+                
+            }
+            
+        }// roundFinished while loop end.
+                
+// -----------------------------------------------
+// ROUND OVER CLEANUP.
+// -----------------------------------------------
         isDealer = false;
         myHand.clear(); //gets rid of current hand
         sleep(1);
+        
     }// end of roundNumber for loop
     
-    // Game Over
-    
+// -----------------------------------------------
+// GAME IS OVER. DECLARE CHAMPION AND FINISH.
+// -----------------------------------------------
     MPI_Barrier(MCW);
     if(isAlive == true && rank != 0){
         cout << "-----------------------------------" << endl;
