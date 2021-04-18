@@ -76,9 +76,9 @@ int main(int argc, char  **argv){
     //=== VARIABLES ===//
     //=================//
 
-    int rank, size, spoons, numDeck, tag, data;
+    int rank, size, spoons, numDeck, data;
     vector<vector<int> > myHand;
-    bool isDealer, isTurn, done, roundFinished = false;
+    bool isDealer, roundFinished = false;
     bool isAlive = true;
 
     MPI_Init(&argc, &argv);
@@ -138,7 +138,6 @@ int main(int argc, char  **argv){
             spoons = numOfRounds;  // number of spoons in play
             numAlive = spoons + 1; // number of current players, only GM needs access to this variable.
         }
-        done = false;
 
         // each process picks their first 4 cards from their own deck (because it's simple)
         vector<vector<int> > initialHand;
@@ -158,7 +157,7 @@ int main(int argc, char  **argv){
         MPI_Barrier(MCW);
         while(!roundFinished){  // exit condition.
             if(rank != 0){
-                // cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
+                cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
             }
             //------------------//
             //---GAME MANAGER---//
@@ -193,7 +192,6 @@ int main(int argc, char  **argv){
                 int isThereAMessage;
                 bool iHaveASpoon = false;
                 int newCard = -7;
-                MPI_Status playerMessageStatus;
                 vector<vector<int> > newHand;
                 
                 if(isDealer) {
@@ -204,22 +202,24 @@ int main(int argc, char  **argv){
                 // get available messages
                 MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
                 while(isThereAMessage || newCard == -7) {
-                    MPI_Recv(&newCard, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &playerMessageStatus);
+                    MPI_Recv(&newCard, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &status);
                     if(newCard == -2) {
                         cout << "Rank: " << rank << " uh oh, someone grabbed a spoon" << endl;
                         break;
                     }
-                    if(!isAlive) MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
                     MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
                 }
 
+                if(newCard == -2) cout << "Rank: " << rank <<  " Made it out of the recv loop" << endl;
                 // figure out what to do with my card
-                if (newCard > 0) {
+                if (newCard != 2) {
                     newHand = takeYourTurn(myHand, newCard);
                     vector<int> discardCard = newHand[newHand.size() - 1];
+                    cout << "NewHand Size --> " << newHand.size() << endl;
                     newHand.pop_back();
+                    cout << "NewHand Size After --> " << newHand.size() << endl;
                     int discard = discardCard[0];
-                    // cout << rank << " Discarding... " << discard << endl;
+                    cout << rank << " Discarding... " << discard << endl;
                     MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
                 }
 
@@ -235,13 +235,18 @@ int main(int argc, char  **argv){
                     cout << "Rank: " << rank << " asking for a spoon" << endl;
                     MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW, &status);
                     cout <<"Rank: " << rank <<  "Received a spoon --> " << giveMeASpoon << endl;
+                    if(giveMeASpoon == -2) {
+                        MPI_Send(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW); // ask rank 0 politely for a spoon.
+                        cout << "Rank: " << rank << " asking for a spoon again " << endl;
+                        MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW, &status);
+                    }
                     if(giveMeASpoon == -1) {
                         cout << "I, " << rank << " received a spoon" << endl;
                         iHaveASpoon = true;
                         break;
                     } else {
                         isAlive = false;
-                        cout << rank << " I didn't get a spoon, I'm out!" << endl;
+                        cout << rank << " I didn't get a spoon, I'm out! " << giveMeASpoon << endl;
                         break;
                     }
                 }
@@ -260,6 +265,7 @@ int main(int argc, char  **argv){
     //=================//
     //=== GAME OVER ===//
     //=================//
+    cout << "Rank: " << rank << " waiting for the other players" << endl;
     MPI_Barrier(MCW);
     if(isAlive && rank != 0){
         cout << "===========================" << endl;
