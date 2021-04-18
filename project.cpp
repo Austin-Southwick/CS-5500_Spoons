@@ -114,20 +114,6 @@ int main(int argc, char  **argv){
         isDealer = true;
     }
 
-    // each process picks their first 4 cards from their own deck (because it's simple)
-    vector<vector<int> > initialHand;
-    for(int i = 0; i < 4; i++) {
-        vector<int> newCard;
-        int card = deck[deck.size() - 1];
-        deck.pop_back();
-        newCard.push_back(card);
-        newCard.push_back(1);
-        initialHand.push_back(newCard);
-    }
-
-    // assess the deck
-    myHand = assessHand(initialHand);
-
     //=================//
     //=== GAME LOOP ===//
     //=================//
@@ -141,7 +127,8 @@ int main(int argc, char  **argv){
 
     MPI_Barrier(MCW);
     
-    for(int numOfRounds = size - 2; numOfRounds > 0; numOfRounds--){
+    // for(int numOfRounds = size - 2; numOfRounds > 0; numOfRounds--){
+        int numOfRounds = size - 2;
         cout << "Rank: " << rank << " Starting round!" << endl;
         // -- initialize round -- //
         int numAlive;
@@ -152,10 +139,26 @@ int main(int argc, char  **argv){
             numAlive = spoons + 1; // number of current players, only GM needs access to this variable.
         }
         done = false;
+
+        // each process picks their first 4 cards from their own deck (because it's simple)
+        vector<vector<int> > initialHand;
+        for(int i = 0; i < 4; i++) {
+            vector<int> newCard;
+            int card = deck[deck.size() - 1];
+            deck.pop_back();
+            newCard.push_back(card);
+            newCard.push_back(1);
+            initialHand.push_back(newCard);
+        }
+
+        // assess the deck
+        myHand = assessHand(initialHand);
+
         // -- during round -- //
+        MPI_Barrier(MCW);
         while(!roundFinished){  // exit condition.
             if(rank != 0){
-                cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
+                // cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
             }
             //------------------//
             //---GAME MANAGER---//
@@ -175,6 +178,7 @@ int main(int argc, char  **argv){
                     if(spoons == numOfRounds){ // if first spoon was sent.
                         message = -2;
                         for(int i = 1; i < size - 1; i++){
+                            cout << "Telling " << i << " that someone grabbed a spoon " << endl;
                             if(i != data) MPI_Send(&message, 1, MPI_INT, i, 1, MCW); //send message to all participants to start grabbing spoons.
                         }
                     }
@@ -200,15 +204,22 @@ int main(int argc, char  **argv){
             } else {
                 int isThereAMessage;
                 bool iHaveASpoon = false;
-                int newCard;
+                int newCard = -7;
                 MPI_Status playerMessageStatus;
                 vector<vector<int> > newHand;
                 
+                if(isDealer) {
+                    newCard = deck[deck.size() - 1];
+                }
+
                 // get available messages
                 MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
-                while(isThereAMessage) {
+                while(isThereAMessage || newCard == -7) {
                     MPI_Recv(&newCard, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MCW, &playerMessageStatus);
-                    if(newCard == -2) break;
+                    if(newCard == -2) {
+                        cout << "Rank: " << rank << " uh oh, someone grabbed a spoon" << endl;
+                        break;
+                    }
                     if(!isAlive) MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
                     MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
                 }
@@ -224,7 +235,8 @@ int main(int argc, char  **argv){
                     vector<int> discardCard = newHand[newHand.size() - 1];
                     newHand.pop_back();
                     int discard = discardCard[0];
-                    cout << rank << " Discarding... " << discard << endl;
+                    // cout << rank << " Discarding... " << discard << endl;
+                    MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
                 }
 
                 // grab a spoon if someone else has or if I have four of a kind
@@ -239,24 +251,32 @@ int main(int argc, char  **argv){
                     cout << "Rank: " << rank << " asking for a spoon" << endl;
                     MPI_Recv(&giveMeASpoon, 1, MPI_INT, 0, 1, MCW, &status);
                     cout <<"Rank: " << rank <<  "Received a spoon --> " << giveMeASpoon << endl;
-                    if(giveMeASpoon == -3) {
+                    if(giveMeASpoon == -1) {
                         cout << "I, " << rank << " received a spoon" << endl;
                         iHaveASpoon = true;
+                        break;
+                    } else {
+                        isAlive = false;
+                        cout << rank << " I didn't get a spoon, I'm out!" << endl;
+                        break;
                     }
                 }
 
                 myHand = newHand;
-                if(iHaveASpoon) break;
+                if(iHaveASpoon) {
+                    cout << "I have a spoon, breaking" << endl;
+                    break;
+                }
             }
         //-- round over --//
         }
-    }
+    // }
 
     
     //=================//
     //=== GAME OVER ===//
     //=================//
-
+    MPI_Barrier(MCW);
     if(isAlive && rank != 0){
         cout << "===========================" << endl;
         cout << "  Player #" << rank << " is the Spoons Champion!" << endl;
