@@ -189,18 +189,6 @@ int main(int argc, char  **argv){
                     MPI_Send(&message, 1, MPI_INT, data, 1, MCW);
                     break;
                 }
-            
-            
-            //------------------//
-            //------PLAYERS-----//
-            //------------------//
-            // Responsibilities:
-            // - players are to keep track of cards/quantity
-            // - players are to ask for a spoon if 4 of a kind is achieved
-            // - players are to pass cards to the next player in line
-            // - players are to do nothing if not alive
-            // - players are to check if another player has picked up a spoon
-            
             } else {
                 int isThereAMessage;
                 bool iHaveASpoon = false;
@@ -210,6 +198,7 @@ int main(int argc, char  **argv){
                 
                 if(isDealer) {
                     newCard = deck[deck.size() - 1];
+                    deck.pop_back();
                 }
 
                 // get available messages
@@ -222,11 +211,6 @@ int main(int argc, char  **argv){
                     }
                     if(!isAlive) MPI_Send(&newCard, 1, MPI_INT, dest, 0, MCW);
                     MPI_Iprobe(0, MPI_ANY_TAG, MCW, &isThereAMessage, &status);
-                }
-
-                if(newCard != -2 && isDealer) {
-                    newCard = deck[deck.size() - 1];
-                    deck.pop_back();
                 }
 
                 // figure out what to do with my card
