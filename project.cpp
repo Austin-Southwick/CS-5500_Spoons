@@ -17,6 +17,14 @@ bool sortVectorFunc(vector<int> x, vector<int> y) {
     return x[1] > y[1];
 }
 
+void print2DVector(vector<vector<int> > vec) {
+    cout << "++++++++++++++++ PRINTING VECTOR  +++++++++++++++++++" << endl;;
+    for(int i = 0; i < vec.size(); i++) {
+        cout << vec[i][0] << "----" << vec[i][1] << endl;
+    }
+    cout << "++++++++++++++++ DONE PRINTING VECTOR  +++++++++++++++++++" << endl;
+}
+
 vector<vector<int> > assessHand(vector<vector<int> > myHand) {
     for(int i = 0; i < myHand.size(); i++) {
         myHand[i][1] = 1;
@@ -36,6 +44,8 @@ vector<vector<int> > assessHand(vector<vector<int> > myHand) {
 // this assumes hand is 2d vector
 // returns the hand, assumption is that you would discard the last element (send it to the next player/process)
 vector<vector<int> > takeYourTurn(vector<vector<int> > hand, int newCard) {
+    // print2DVector(hand);
+    cout << "%%%%%%%%%%%%%%%%%%" << hand.size() << endl;
     int goingFor = hand[0][0];
     int quantity = hand[0][1];
     int newCardQuantity = 0;
@@ -47,7 +57,6 @@ vector<vector<int> > takeYourTurn(vector<vector<int> > hand, int newCard) {
     sort(hand.begin(), hand.end(), sortVectorFunc);
     return hand;
 }
-
 
 // thank you kind c++ documentation for this code
 int randomFunction(int i) {
@@ -151,13 +160,15 @@ int main(int argc, char  **argv){
         }
 
         // assess the deck
+        cout << "================> " << initialHand.size() << endl;
         myHand = assessHand(initialHand);
+        cout << "================> " << myHand.size() << endl;
 
         // -- during round -- //
         MPI_Barrier(MCW);
         while(!roundFinished){  // exit condition.
             if(rank != 0){
-                cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
+                // cout << "Rank:" << rank << " =" << myHand[0][0] << "-" << myHand[1][0] << "-" << myHand[2][0] << "-" << myHand[3][0] << endl;
             }
             //------------------//
             //---GAME MANAGER---//
@@ -221,10 +232,11 @@ int main(int argc, char  **argv){
                     int discard = discardCard[0];
                     cout << rank << " Discarding... " << discard << endl;
                     MPI_Send(&discard, 1, MPI_INT, dest, 0, MCW);
+                    myHand = newHand;
                 }
 
                 // grab a spoon if someone else has or if I have four of a kind
-                if(newCard == -2 || newHand[0][1] == 4) {
+                if(newCard == -2 || (!newHand.empty() && newHand[0][1] == 4)) {
                     if(newHand[0][1] == 4) {
                         cout << "I'm winning - " << rank << " + " << newHand[0][0] << "-" << newHand[1][0] << "-" << newHand[2][0] << "-" << newHand[3][0] <<  endl;
                     } else {
@@ -251,7 +263,6 @@ int main(int argc, char  **argv){
                     }
                 }
 
-                myHand = newHand;
                 if(iHaveASpoon) {
                     cout << "I have a spoon, breaking" << endl;
                     break;
